@@ -4,12 +4,11 @@ uint16_t getSmoothlyFilteredRSSI();
 void runLapDetectionAlgorithm() {
     // check rssi threshold to identify when drone finishes the lap
     if (rssiThreshold > 0) { // threshold = 0 means that we don't check rssi values
-        if(rssi > rssiThreshold) { // rssi above the threshold - drone is near
+        if(rssi > rssiThreshold && rssiFalling == 1) { // rssi above the threshold and getting lower - drone is passing
             if (allowLapGeneration) {  // we haven't fired event for this drone proximity case yet
                 allowLapGeneration = 0;
-
-                now = millis();
-                uint32_t diff = now - lastMilliseconds; //time diff with the last lap (or with the race start)
+          
+                uint32_t diff = peakMilliseconds - lastMilliseconds; //time diff with the last lap (or with the race start)
                 if (timeAdjustment != 0 && timeAdjustment != INFINITE_TIME_ADJUSTMENT) {
                     diff = diff + (int32_t)diff/timeAdjustment;
                 }
@@ -22,7 +21,7 @@ void runLapDetectionAlgorithm() {
                                 lapTimes[newLapIndex] = diff;
                             } else {
                                 // for the raceMode 2 count times relative to the race start (ever-growing with each new lap within the race)
-                                uint32_t diffStart = now - raceStartTime;
+                                uint32_t diffStart = peakMilliseconds - raceStartTime;
                                 if (timeAdjustment != 0 && timeAdjustment != INFINITE_TIME_ADJUSTMENT) {
                                     diffStart = diffStart + (int32_t)diffStart/timeAdjustment;
                                 }
@@ -32,7 +31,7 @@ void runLapDetectionAlgorithm() {
                             lastLapsNotSent++;
                             addToSendQueue(SEND_LAST_LAPTIMES);
                         }
-                        lastMilliseconds = now;
+                        lastMilliseconds = peakMilliseconds;
                         playLapTones(); // during the race play tone sequence even if no more laps can be logged
                     }
                 }
