@@ -171,12 +171,16 @@ const uint16_t musicNotes[] = {
 
 //----- RSSI --------------------------------------
 #define FILTER_ITERATIONS 5 // software filtering iterations; set 0 - if filtered in hardware; set 5 - if not
+#define SLOPE_DETECTION_ITERATIONS 50  // rssi readings for slope detection. 5ms, if cycle takes 100us. ~14cm at 100kmh.
 uint16_t rssiArr[FILTER_ITERATIONS + 1];
-uint16_t rssiThreshold = 190;
+uint16_t rssiThreshold = 180;
 uint16_t rssi; // rssi measured using first (slight) filter
 uint16_t rssi2; // rssi measured using second (deeper/slower) filter
 uint16_t rssi3; // rssi measured using third (even deeper/slower) filter that is expected to produce a smooth curve
 uint16_t rssiForThresholdSetup; // special rssi for threshold setup (slooow filter)
+uint16_t rssiMax = 0;
+uint8_t slopeIterations = 0;
+uint8_t rssiFalling = 0;
 
 #define PROXIMITY_STEPS 20 // starts tracking proximity rssi from threshold decreased by this amount
 bool isApproaching = false;
@@ -247,6 +251,7 @@ uint8_t isSendQueueFull = 0;
 
 //----- Lap timings--------------------------------
 uint32_t lastMilliseconds = 0;
+uint32_t peakMilliseconds = 0;
 uint32_t now = 0;
 uint32_t raceStartTime = 0;
 #define MIN_MIN_LAP_TIME 1 //seconds
@@ -349,6 +354,8 @@ void loop() {
         rssiForThresholdSetup = getRssiForAutomaticThresholdSetup(); // filter RSSI
     }
 
+    slopeDetection();
+ 
     // detect lap
     if (experimentalMode) {
         runExperimentalLapDetectionAlgorithm();
@@ -1074,15 +1081,33 @@ void gen_rising_edge(int pin) {
 // ----------------------------------------------------------------------------
 uint16_t readRSSI() {
     int rssiA = 0;
-
+    int rssiArray[RSSI_READS];
+    
     analogRead(rssiPinA); // first fake read to improve further readings accuracy (as suggested by Nicola Gorghetto)
-
+    
     for (uint8_t i = 0; i < RSSI_READS; i++) {
-        rssiA += analogRead(rssiPinA);
+        rssiArray[i] = analogRead(rssiPinA);
+        rssiA += rssiArray[i];
     }
 
-    rssiA = rssiA/RSSI_READS; // average of RSSI_READS readings
-    return rssiA;
+    if (RSSI_READS > 3){  // simple filtering - eliminate min and max values from average calculation
+        int maxVal = rssiArray[0];
+        int minVal = rssiArray[0];
+        for (uint8_t i = 1; i < RSSI_READS; i++){
+            if (minVal > rssiArray[i]){
+                minVal = rssiArray[i];
+            }
+            if (maxVal < rssiArray[i]){
+                maxVal = rssiArray[i];
+            }
+        }
+        rssiA = (rssiA-maxVal-minVal)/(RSSI_READS-2); // average of RSSI_READS readings without min and max values
+    }
+    else {
+      rssiA = rssiA/RSSI_READS; // average of RSSI_READS readings
+    }
+ 
+    return rssiA;;
 }
 // ----------------------------------------------------------------------------
 uint16_t readVoltage() {
@@ -1096,6 +1121,23 @@ uint16_t readVoltage() {
 
     voltageA = voltageA/VOLTAGE_READS; // average of RSSI_READS readings
     return voltageA;
+}
+// ----------------------------------------------------------------------------
+void slopeDetection() {
+    if (rssiThreshold == 0 || rssi <= rssiThreshold || rssiMax <= rssi) {
+        rssiMax = rssi;
+        slopeIterations = 0;
+        rssiFalling = 0;
+        peakMilliseconds = millis();
+    }
+    else  {
+        if (slopeIterations < SLOPE_DETECTION_ITERATIONS) {
+            slopeIterations +=1;
+        }
+    }
+    if (slopeIterations == SLOPE_DETECTION_ITERATIONS)  {
+        rssiFalling = 1;
+    }
 }
 // ----------------------------------------------------------------------------
 void sendDebugInfo() {
