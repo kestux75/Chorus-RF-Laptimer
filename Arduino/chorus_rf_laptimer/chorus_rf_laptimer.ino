@@ -925,7 +925,7 @@ void setupThreshold(uint8_t phase) {
     // don't make it bigger than 2000 to avoid overflow of accumulatedShiftedRssi
     #define ACCUMULATION_TIME_CONSTANT 150
     #define MILLIS_BETWEEN_ACCU_READS 10 // artificial delay between rssi reads to slow down the accumulation
-    #define TOP_RSSI_DECREASE_PERCENT 10 // decrease top value by this percent using diff between low and high as a base
+    #define TOP_RSSI_DECREASE_PERCENT 13 // decrease top value by this percent using diff between low and high as a base
     #define RISE_RSSI_THRESHOLD_PERCENT 25 // rssi value should pass this percentage above low value to continue finding the peak and further fall down of rssi
     #define FALL_RSSI_THRESHOLD_PERCENT 50 // rssi should fall below this percentage of diff between high and low to finalize setup of the threshold
 
